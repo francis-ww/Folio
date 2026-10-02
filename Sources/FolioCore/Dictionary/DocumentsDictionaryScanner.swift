@@ -1,7 +1,7 @@
 import Foundation
 
 public enum DocumentsDictionaryError: FolioMessageProviding, LocalizedError, Equatable {
-    case changingFile, unsafeFile, duplicateNames(String), unpairedResource(String)
+    case changingFile, unsafeFile, duplicateNames(String), unpairedResource(String), unreadableFile(String)
 
     public var message: FolioMessage {
         switch self {
@@ -9,6 +9,7 @@ public enum DocumentsDictionaryError: FolioMessageProviding, LocalizedError, Equ
         case .unsafeFile: FolioMessage("Only regular dictionary files inside Folio’s Documents folder can be used.")
         case .duplicateNames(let name): FolioMessage("More than one dictionary file is named %@. Give each dictionary a unique filename.", [.text(name)])
         case .unpairedResource(let name): FolioMessage("%@ needs a matching MDX file. Copy both files into Folio’s folder.", [.text(name)])
+        case .unreadableFile(let name): FolioMessage("%@ couldn’t be read. Check the file in Files and refresh dictionaries.", [.text(name)])
         }
     }
     public var errorDescription: String? { message.englishDescription }
@@ -72,7 +73,7 @@ public actor DocumentsDictionaryScanner {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
-    public func scan() async throws -> DocumentsDictionaryScanReport {
+    public func scan(onChange: @escaping @Sendable () async -> Void = {}) async throws -> DocumentsDictionaryScanReport {
         if let scanTask {
             rescanRequested = true
             return try await scanTask.value
@@ -81,7 +82,7 @@ public actor DocumentsDictionaryScanner {
             var total = DocumentsDictionaryScanReport()
             repeat {
                 rescanRequested = false
-                let report = try await performScan()
+                let report = try await performScan(onChange: onChange)
                 total.discoveredCount = report.discoveredCount
                 total.updatedCount += report.updatedCount
                 total.removedCount += report.removedCount
@@ -106,38 +107,75 @@ public actor DocumentsDictionaryScanner {
         try await library.removeSource(id: id)
     }
 
-    private func performScan() async throws -> DocumentsDictionaryScanReport {
+    private func performScan(onChange: @Sendable () async -> Void) async throws -> DocumentsDictionaryScanReport {
         try Task.checkCancellation()
         let files = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])
-        var groups: [String: [URL]] = [:]
-        for url in files where ["mdx", "mdd"].contains(url.pathExtension.lowercased()) {
-            groups[url.deletingPathExtension().lastPathComponent.lowercased(), default: []].append(url)
-        }
+        let dictionaries = Dictionary(grouping: files.filter { $0.pathExtension.lowercased() == "mdx" },
+            by: { $0.deletingPathExtension().lastPathComponent.lowercased() })
+        let resources = files.filter { $0.pathExtension.lowercased() == "mdd" }
+        let priorSnapshots = try await library.documentsSnapshots()
         var report = DocumentsDictionaryScanReport()
-        var presentStems: Set<String> = []
-        for stem in groups.keys.sorted() {
-            try Task.checkCancellation()
-            let urls = groups[stem] ?? []
-            let mdx = urls.filter { $0.pathExtension.lowercased() == "mdx" }
-            let mdd = urls.filter { $0.pathExtension.lowercased() == "mdd" }
-            if !mdx.isEmpty { presentStems.insert(stem); report.discoveredCount += 1 }
-            do {
-                guard mdx.count <= 1, mdd.count <= 1 else { throw DocumentsDictionaryError.duplicateNames(stem) }
-                guard let dictionary = mdx.first else {
-                    throw DocumentsDictionaryError.unpairedResource(mdd.first?.lastPathComponent ?? stem)
-                }
-                let snapshot = try DocumentsArchiveSnapshot(stem: stem, mdx: ArchiveFileStamp.read(dictionary, root: root),
-                    mdd: mdd.first.map { try ArchiveFileStamp.read($0, root: root) })
-                if try await library.synchronizeDocumentsArchive(snapshot, root: root) { report.updatedCount += 1 }
-                else { report.unchangedCount += 1 }
-            } catch is CancellationError { throw CancellationError() }
-            catch {
-                report.failures.append(FolioMessage("%@ — %@", [.text(mdx.first?.lastPathComponent ?? mdd.first?.lastPathComponent ?? stem),
-                    .message(.from(error, fallback: "This dictionary couldn’t be indexed. Check the file and scan again."))]))
-            }
+        report.discoveredCount = dictionaries.count
+        var updated: Set<String> = []
+        var snapshots: [String: DocumentsArchiveSnapshot] = [:]
+        var companions: [String: [URL]] = [:]
+
+        func failure(_ url: URL, _ error: any Error) {
+            ArchiveDiagnostics.report(filename: url.lastPathComponent, error: error)
+            report.failures.append(FolioMessage("%@ — %@", [.text(url.lastPathComponent),
+                .message(.from(error, fallback: "Failed to parse dictionary"))]))
         }
-        // Only sources previously managed by this scanner are removed. Older imports are retained.
-        report.removedCount = try await library.removeMissingDocumentsArchives(presentStems: presentStems, root: root)
+
+        for resource in resources {
+            let name = resource.deletingPathExtension().lastPathComponent.lowercased()
+            let knownOwnerRemoved = priorSnapshots.contains {
+                $0.mdd?.filename.lowercased() == resource.lastPathComponent.lowercased() && dictionaries[$0.stem] == nil
+            }
+            if let stem = DictionaryFilePairing.match(resourceStem: name, dictionaryStems: Array(dictionaries.keys), allowSingleFallback: !knownOwnerRemoved) {
+                companions[stem, default: []].append(resource)
+            } else { failure(resource, DocumentsDictionaryError.unpairedResource(resource.lastPathComponent)) }
+        }
+        // All MDX definitions publish before any MDD work, so audio never gates reading.
+        for stem in dictionaries.keys.sorted() {
+            try Task.checkCancellation()
+            guard let urls = dictionaries[stem], let url = urls.first else { continue }
+            do {
+                guard urls.count == 1 else { throw DocumentsDictionaryError.duplicateNames(stem) }
+                let snapshot = try DocumentsArchiveSnapshot(stem: stem, mdx: ArchiveFileStamp.read(url, root: root), mdd: nil)
+                if try await library.synchronizeDocumentsDefinitions(snapshot, root: root) {
+                    updated.insert(stem)
+                    await onChange()
+                }
+                snapshots[stem] = snapshot
+            } catch is CancellationError { throw CancellationError() }
+            catch { failure(url, error) }
+        }
+        for stem in snapshots.keys.sorted() {
+            try Task.checkCancellation()
+            guard let definition = snapshots[stem] else { continue }
+            let candidates = companions[stem] ?? []
+            let exact = candidates.filter { $0.deletingPathExtension().lastPathComponent.lowercased() == stem }
+            let chosen = exact.count == 1 ? exact.first : candidates.count == 1 ? candidates.first : nil
+            if candidates.count > 1 {
+                for url in candidates where url != chosen { failure(url, DocumentsDictionaryError.unpairedResource(url.lastPathComponent)) }
+                if chosen == nil { continue }
+            }
+            let filename = chosen ?? root.appendingPathComponent(definition.mdx.filename)
+            do {
+                let snapshot = try DocumentsArchiveSnapshot(stem: stem, mdx: definition.mdx,
+                    mdd: chosen.map { try ArchiveFileStamp.read($0, root: root) })
+                if try await library.synchronizeDocumentsResources(snapshot, root: root) {
+                    updated.insert(stem)
+                    await onChange()
+                }
+            } catch is CancellationError { throw CancellationError() }
+            catch { failure(filename, error) }
+        }
+        report.updatedCount = updated.count
+        report.unchangedCount = snapshots.count - updated.count
+        // A missing/unreadable directory throws before this point and cannot erase indexes.
+        report.removedCount = try await library.removeMissingDocumentsArchives(presentStems: Set(dictionaries.keys), root: root)
+        if report.removedCount > 0 { await onChange() }
         return report
     }
 }

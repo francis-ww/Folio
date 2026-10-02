@@ -28,8 +28,8 @@ struct LibraryView: View {
                 } else if let status = services.documentsStatus {
                     LocalizedMessageText(status).font(.subheadline).foregroundStyle(Theme.accent)
                 }
-                ForEach(Array(services.documentsFailures.enumerated()), id: \.offset) { _, message in
-                    LocalizedMessageText(message).font(.subheadline).foregroundStyle(Theme.error)
+                if !services.documentsFailures.isEmpty {
+                    DictionaryImportWarningView(messages: services.documentsFailures)
                 }
                 DictionarySelectionView(sources: model.sources, selection: model.selection, onToggle: { id, enabled in
                     model.setEnabled(enabled, id: id, services: services)

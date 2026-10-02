@@ -5,6 +5,10 @@ import GRDB
 /// Only immutable Sendable values cross back into the UI.
 public actor DictionaryLibrary: DictionaryRepository {
     let database: DatabaseQueue
+    let indexRoot: URL
+    var indexCache: [String: MDictIndexDatabase] = [:]
+    var importTask: Task<Void, any Error>?
+    var importRequest = UUID()
 
     public init(path: String) throws {
         let queue = try DatabaseQueue(path: path)
@@ -41,8 +45,22 @@ public actor DictionaryLibrary: DictionaryRepository {
                 );
                 """)
         }
+        migrator.registerMigration("massive-indexes-v3") { db in
+            try db.execute(sql: """
+                ALTER TABLE sources ADD COLUMN definitionIndex TEXT;
+                ALTER TABLE sources ADD COLUMN resourceIndex TEXT;
+                ALTER TABLE sources ADD COLUMN indexedEntries INTEGER NOT NULL DEFAULT 0;
+                ALTER TABLE sources ADD COLUMN indexedResources INTEGER NOT NULL DEFAULT 0;
+                """)
+        }
         try migrator.migrate(queue)
         database = queue
+        if path == ":memory:" {
+            indexRoot = FileManager.default.temporaryDirectory.appendingPathComponent("Folio.Indexes.\(UUID().uuidString)", isDirectory: true)
+        } else {
+            indexRoot = URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent("Indexes", isDirectory: true)
+        }
+        try FileManager.default.createDirectory(at: indexRoot, withIntermediateDirectories: true)
     }
 
     public func seedSamples() throws {
@@ -64,7 +82,8 @@ public actor DictionaryLibrary: DictionaryRepository {
 
     private func search(_ query: String, sourceID: String?) throws -> [DictionaryEntry] {
         let trimmed = String(query.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
-        return try database.read { db in
+        if let sourceID, let index = try definitionIndex(sourceID) { return try Self.searchIndex(trimmed, index: index) }
+        let legacy = try database.read { db in
             let rows: [Row]
             if trimmed.isEmpty {
                 rows = try Row.fetchAll(db, sql: "SELECT payload FROM entries WHERE (? IS NULL OR dictionaryID = ?) ORDER BY headword LIMIT 30",
@@ -81,27 +100,36 @@ public actor DictionaryLibrary: DictionaryRepository {
             }
             return try rows.map { try JSONDecoder().decode(DictionaryEntry.self, from: $0["payload"]) }
         }
+        guard sourceID == nil else { return legacy }
+        var values = legacy
+        for id in try indexedSourceIDs() {
+            if let index = try definitionIndex(id) { values += try Self.searchIndex(trimmed, index: index) }
+        }
+        return Array(values.sorted { $0.headword.localizedCaseInsensitiveCompare($1.headword) == .orderedAscending }.prefix(trimmed.isEmpty ? 30 : 50))
     }
 
     public func entry(id: String) throws -> DictionaryEntry? {
-        try database.read { db in
-            guard let data = try Data.fetchOne(db, sql: "SELECT payload FROM entries WHERE id = ?", arguments: [id]) else { return nil }
-            return try JSONDecoder().decode(DictionaryEntry.self, from: data)
+        if let entry = try Self.entry(id: id, database: database) { return entry }
+        for source in try indexedSourceIDs() {
+            if let index = try definitionIndex(source), let entry = try Self.entry(id: id, database: index.database) { return entry }
         }
+        return nil
     }
 
     public func lookup(_ headword: String, dictionaryID: String) throws -> DictionaryEntry? {
-        try database.read { db in
+        let indexed = try definitionIndex(dictionaryID)
+        let queue = indexed?.database ?? database
+        return try queue.read { db in
             var target = headword
             var visited: Set<String> = []
-            for _ in 0 ..< 12 {
+            for _ in 0..<12 {
+                let sql = indexed == nil ? "SELECT payload FROM entries WHERE headword = ? AND dictionaryID = ? LIMIT 1" : "SELECT payload FROM entries WHERE headword = ? LIMIT 1"
+                let arguments: StatementArguments = indexed == nil ? [target, dictionaryID] : [target]
                 guard visited.insert(target.lowercased()).inserted,
-                      let data = try Data.fetchOne(db, sql: "SELECT payload FROM entries WHERE headword = ? AND dictionaryID = ? LIMIT 1",
-                                                  arguments: [target, dictionaryID]) else { return nil }
-                let value = try JSONDecoder().decode(DictionaryEntry.self, from: data)
-                if value.html.hasPrefix("@@@LINK=") {
-                    target = String(value.html.dropFirst(8)).trimmingCharacters(in: .whitespacesAndNewlines)
-                } else { return value }
+                      let data = try Data.fetchOne(db, sql: sql, arguments: arguments) else { return nil }
+                let entry = try JSONDecoder().decode(DictionaryEntry.self, from: data)
+                if entry.html.hasPrefix("@@@LINK=") { target = String(entry.html.dropFirst(8)).trimmingCharacters(in: .whitespacesAndNewlines) }
+                else { return entry }
             }
             throw MDictError.malformed("dictionary link cycle")
         }
@@ -110,8 +138,8 @@ public actor DictionaryLibrary: DictionaryRepository {
     public func sources() throws -> [DictionarySource] {
         try database.read { db in
             try Row.fetchAll(db, sql: """
-                SELECT s.*, (SELECT count(*) FROM entries WHERE dictionaryID = s.id) AS entryCount,
-                    (SELECT count(*) FROM resources WHERE dictionaryID = s.id) AS resourceCount
+                SELECT s.*, CASE WHEN s.definitionIndex IS NULL THEN (SELECT count(*) FROM entries WHERE dictionaryID = s.id) ELSE s.indexedEntries END AS entryCount,
+                    CASE WHEN s.resourceIndex IS NULL THEN (SELECT count(*) FROM resources WHERE dictionaryID = s.id) ELSE s.indexedResources END AS resourceCount
                 FROM sources s ORDER BY isSample, title
                 """).map {
                     DictionarySource(id: $0["id"], title: $0["title"], filename: $0["filename"],
@@ -122,57 +150,23 @@ public actor DictionaryLibrary: DictionaryRepository {
 
     public func resource(path: String, dictionaryID: String) throws -> Data? {
         guard let key = ResourcePath.normalize(path) else { return nil }
+        if let index = try resourceIndex(dictionaryID) {
+            do { return try archiveAutoreleasePool { try index.resource(path: key) } }
+            catch {
+                if !(error is CancellationError) { ArchiveDiagnostics.report(filename: key, error: error) }
+                if !(error is CancellationError), !(error is any FolioMessageProviding) { throw DocumentsDictionaryError.unreadableFile(key) }
+                throw error
+            }
+        }
         return try database.read { db in
             try Data.fetchOne(db, sql: "SELECT payload FROM resources WHERE dictionaryID = ? AND path = ?", arguments: [dictionaryID, key])
         }
     }
 
-    /// A selected MDX and matching MDD set commits together, or rolls back together.
-    public func importArchives(_ urls: [URL]) throws {
-        try database.write { db in try Self.importArchives(urls, db: db) }
-    }
-
-    static func importArchives(_ urls: [URL], db: Database) throws {
-        try Task.checkCancellation()
-        let ordered = urls.sorted { $0.pathExtension.lowercased() == "mdx" && $1.pathExtension.lowercased() != "mdx" }
-        for url in ordered {
-            try Task.checkCancellation()
-            let ext = url.pathExtension.lowercased()
-            guard ext == "mdx" || ext == "mdd" else { throw MDictError.unsupported("the .\(ext) file type") }
-            let reader = try MDictReader(url: url, resourceArchive: ext == "mdd")
-            let stem = url.deletingPathExtension().lastPathComponent.lowercased()
-            if ext == "mdx" {
-                let existing = try String.fetchOne(db, sql: "SELECT id FROM sources WHERE filename = ?", arguments: [stem])
-                if let existing {
-                    try db.execute(sql: "DELETE FROM sources WHERE id = ?", arguments: [existing])
-                }
-                let id = existing ?? UUID().uuidString.lowercased()
-                try db.execute(sql: "INSERT INTO sources(id, title, filename) VALUES (?, ?, ?)", arguments: [id, reader.header.title, stem])
-                var number = 0
-                try reader.records { headword, raw in
-                    guard let html = String(data: raw, encoding: reader.header.encoding) else { throw MDictError.malformed("definition encoding") }
-                    let cleaned = html.trimmingCharacters(in: CharacterSet(charactersIn: "\0").union(.whitespacesAndNewlines))
-                    let entry = DictionaryEntry(id: "\(id):\(number)", dictionaryID: id, headword: headword,
-                                                summary: Self.summary(cleaned), html: cleaned)
-                    try Self.insert(entry, db: db)
-                    number += 1
-                }
-            } else {
-                guard let id = try String.fetchOne(db, sql: "SELECT id FROM sources WHERE filename = ? AND isSample = 0", arguments: [stem]) else {
-                    throw MDictError.missingDictionary
-                }
-                try reader.records { path, data in
-                    guard let normalized = ResourcePath.normalize(path) else { throw MDictError.malformed("invalid resource path") }
-                    try db.execute(sql: "INSERT OR REPLACE INTO resources(dictionaryID, path, payload) VALUES (?, ?, ?)",
-                                   arguments: [id, normalized, data])
-                }
-            }
-        }
-        try Task.checkCancellation()
-    }
-
     public func removeSource(id: String) throws {
+        let files = try indexFiles(sourceID: id)
         try database.write { db in try db.execute(sql: "DELETE FROM sources WHERE id = ?", arguments: [id]) }
+        removeIndexFiles(files)
     }
 
     private static func insert(_ entry: DictionaryEntry, db: Database) throws {
@@ -182,7 +176,7 @@ public actor DictionaryLibrary: DictionaryRepository {
         try db.execute(sql: "INSERT INTO entries_fts(rowid, headword) VALUES (?, ?)", arguments: [db.lastInsertedRowID, entry.headword])
     }
 
-    private static func summary(_ html: String) -> String {
+    static func summary(_ html: String) -> String {
         if html.hasPrefix("@@@LINK=") { return "See " + html.dropFirst(8) }
         let text = html.replacingOccurrences(of: "(?is)<(script|style)\\b[^>]*>.*?</\\1\\s*>", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)

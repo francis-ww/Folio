@@ -62,7 +62,7 @@ final class AppServices {
             repeat {
                 rescanRequested = false
                 do {
-                    let report = try await documentsScanner.scan()
+                    let report = try await documentsScanner.scan { await self.dictionaryIndexChanged() }
                     documentsFailures = report.failures
                     if !report.failures.isEmpty { documentsStatus = FolioMessage("Scan complete. Some files need attention.") }
                     else {
@@ -70,7 +70,6 @@ final class AppServices {
                             ? FolioMessage("No MDX dictionaries found in Folio’s folder.")
                             : FolioMessage("Your Documents folder is up to date.")
                     }
-                    if report.hasChanges { libraryRevision += 1 }
                 } catch {
                     documentsStatus = nil
                     documentsFailures = [.from(error, fallback: "Folio’s Documents folder couldn’t be scanned. Please try again.")]
@@ -80,6 +79,8 @@ final class AppServices {
         documentsTask = task
         await task.value
     }
+
+    private func dictionaryIndexChanged() { libraryRevision += 1 }
 
     static func makeLive(language: AppLanguageManager, appearance: AppAppearanceManager) async throws -> AppServices {
         let bundle = try await Task.detached(priority: .userInitiated) {

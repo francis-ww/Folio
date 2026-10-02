@@ -7,12 +7,15 @@ struct DictionaryHTMLView: UIViewRepresentable {
     let entry: DictionaryEntry
     let repository: any DictionaryRepository
     let onLookup: @MainActor (String) -> Void
+    var onResourceFailure: @MainActor (FolioMessage) -> Void = { _ in }
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.locale) private var locale
     @ScaledMetric(relativeTo: .body) private var fontSize = 17.0
 
-    func makeCoordinator() -> Coordinator { Coordinator(repository: repository, dictionaryID: entry.dictionaryID, onLookup: onLookup) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(repository: repository, dictionaryID: entry.dictionaryID, onLookup: onLookup, onResourceFailure: onResourceFailure)
+    }
 
     func makeUIView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -29,6 +32,8 @@ struct DictionaryHTMLView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.locale = locale
+        context.coordinator.onResourceFailure = onResourceFailure
+        context.coordinator.resources.onFailure = onResourceFailure
         webView.accessibilityLabel = AppLocalization.string(FolioMessage("Dictionary definition"), locale: locale)
         if context.coordinator.audioFailed {
             webView.accessibilityHint = AppLocalization.string(FolioMessage("This pronunciation could not be played."), locale: locale)
@@ -66,6 +71,7 @@ struct DictionaryHTMLView: UIViewRepresentable {
         let dictionaryID: String
         let resources: LocalResourceSchemeHandler
         var onLookup: @MainActor (String) -> Void
+        var onResourceFailure: @MainActor (FolioMessage) -> Void
         var loadedKey: String?
         var audioTask: Task<Void, Never>?
         var renderTask: Task<Void, Never>?
@@ -73,11 +79,15 @@ struct DictionaryHTMLView: UIViewRepresentable {
         var locale = Locale(identifier: "en")
         var audioFailed = false
 
-        init(repository: any DictionaryRepository, dictionaryID: String, onLookup: @escaping @MainActor (String) -> Void) {
+        init(repository: any DictionaryRepository, dictionaryID: String, onLookup: @escaping @MainActor (String) -> Void,
+             onResourceFailure: @escaping @MainActor (FolioMessage) -> Void) {
             self.repository = repository
             self.dictionaryID = dictionaryID
             self.onLookup = onLookup
+            self.onResourceFailure = onResourceFailure
             resources = LocalResourceSchemeHandler(repository: repository, dictionaryID: dictionaryID)
+            super.init()
+            resources.onFailure = onResourceFailure
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
@@ -111,6 +121,8 @@ struct DictionaryHTMLView: UIViewRepresentable {
                         player = try AVAudioPlayer(data: data)
                         player?.play()
                     } catch {
+                        guard !Task.isCancelled else { return }
+                        if let archiveError = error as? any FolioMessageProviding { onResourceFailure(archiveError.message) }
                         audioFailed = true
                         webView.accessibilityHint = AppLocalization.string(FolioMessage("This pronunciation could not be played."), locale: locale)
                     }
@@ -120,4 +132,4 @@ struct DictionaryHTMLView: UIViewRepresentable {
     }
 }
 
-#Preview { DictionaryHTMLView(entry: .init(id: "preview", headword: "folio", summary: "A page of a book.", html: "<p><i>noun</i></p><p>A page of a book.</p>"), repository: MockDictionaryRepository()) { _ in }.padding().background(Theme.paper) }
+#Preview { DictionaryHTMLView(entry: .init(id: "preview", headword: "folio", summary: "A page of a book.", html: "<p><i>noun</i></p><p>A page of a book.</p>"), repository: MockDictionaryRepository(), onLookup: { _ in }).padding().background(Theme.paper) }

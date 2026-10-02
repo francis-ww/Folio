@@ -25,7 +25,10 @@ struct DocumentsLibraryTests {
     @Test @MainActor func filesGuideFitsNarrowScreensInBothLanguagesAndAppearances() throws {
         for language in ["en", "zh-Hans"] {
             for scheme in [ColorScheme.light, .dark] {
-                let content = FilesDictionaryGuide().padding().frame(width: 320)
+                let content = VStack(spacing: 18) {
+                    FilesDictionaryGuide()
+                    DictionaryImportWarningView(messages: [MDictError.passcodeRequired.message])
+                }.padding().frame(width: 320)
                     .environment(\.locale, Locale(identifier: language))
                     .environment(\.colorScheme, scheme).environment(\.dynamicTypeSize, .accessibility2)
                 let controller = UIHostingController(rootView: content)

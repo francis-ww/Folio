@@ -9,6 +9,7 @@ import FolioCore
     private let dictionaryID: String
     private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
     var isDark = false
+    var onFailure: @MainActor (FolioMessage) -> Void = { _ in }
 
     init(repository: any DictionaryRepository, dictionaryID: String) {
         self.repository = repository
@@ -38,6 +39,7 @@ import FolioCore
                 urlSchemeTask.didFinish()
             } catch {
                 guard !Task.isCancelled, tasks[id] != nil else { return }
+                if let archiveError = error as? any FolioMessageProviding { onFailure(archiveError.message) }
                 urlSchemeTask.didFailWithError(error)
             }
         }

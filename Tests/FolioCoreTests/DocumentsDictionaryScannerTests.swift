@@ -214,7 +214,9 @@ struct DocumentsDictionaryScannerTests {
         try handle.truncate(atOffset: 1_073_741_824)
         try handle.close()
         let report = try await scanner.scan()
-        #expect(report.failures.count == 1 && report.updatedCount == 0)
-        #expect(try await library.sources().isEmpty) // The entire pair rolls back.
+        #expect(report.failures.count == 1 && report.updatedCount == 1)
+        let source = try #require(try await library.sources().first)
+        #expect(source.entryCount == 4 && source.resourceCount == 0)
+        #expect(try await library.lookup("aurora", dictionaryID: source.id) != nil) // Definitions survive an invalid MDD.
     }
 }

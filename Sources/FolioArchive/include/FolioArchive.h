@@ -2,7 +2,10 @@
 #define FOLIO_ARCHIVE_H
 #include <stddef.h>
 #include <stdint.h>
-int folio_inflate(const uint8_t *input, size_t input_size, uint8_t *output, size_t *output_size);
+/* Buffer sizes are 64-bit. File offsets/seeks use Swift FileHandle's UInt64 API.
+ * This module does not open files or call fseek/ftell. Pointer indexing uses
+ * native size_t, which is required to be 64-bit on Folio's supported targets. */
+int folio_inflate(const uint8_t *input, uint64_t input_size, uint8_t *output, uint64_t *output_size);
 uint32_t folio_adler32(const uint8_t *input, size_t size);
 /* Return 0 on success, -1 for invalid pointers or key sizes. Empty data may be NULL. */
 int folio_ripemd128(const uint8_t *input, size_t size, uint8_t output[16]);

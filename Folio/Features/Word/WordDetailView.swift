@@ -49,7 +49,7 @@ struct WordDetailView: View {
                                 if linkedWord == nil { model.error = report.failures.first?.message ?? FolioMessage("No definition was found for %@.", [.text(word)]) }
                             } catch is CancellationError {} catch { model.error = FolioMessage.from(error, fallback: "This word couldn’t be opened or saved. Please try again.") }
                         }
-                    }, onPronounce: { model.pronounce($0) }).id(model.entry.dictionaryID)
+                    }, onPronounce: { model.pronounce($0) }).id("\(model.entry.dictionaryID):\(services.libraryRevision)")
                     if model.audio.isLoading { ProgressView("Loading pronunciation…").font(.caption) }
                     if let error = model.audio.error { LocalizedMessageText(error).font(.subheadline).foregroundStyle(Theme.muted) }
                 } else if !model.isLoading {

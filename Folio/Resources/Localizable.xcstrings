@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%@ couldn’t be read. Check the file in Files and refresh dictionaries.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ couldn’t be read. Check the file in Files and refresh dictionaries."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 %@。请在「文件」应用中检查该文件，然后重新扫描词库。"
+          }
+        }
+      }
+    },
     "%@ d": {
       "extractionState": "manual",
       "localizations": {
@@ -601,6 +618,23 @@
         }
       }
     },
+    "Available definitions remain readable. Check the files, then refresh to try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Available definitions remain readable. Check the files, then refresh to try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已载入的释义仍可阅读。请检查文件后，重新扫描词库。"
+          }
+        }
+      }
+    },
     "Bring your dictionaries. Explore them offline.": {
       "extractionState": "manual",
       "localizations": {
@@ -1124,6 +1158,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "请同时填写 App Key 与 App Secret，或移除已保存的密钥。"
+          }
+        }
+      }
+    },
+    "Failed to parse dictionary": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to parse dictionary"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法解析词典"
           }
         }
       }
@@ -3916,6 +3967,23 @@
         }
       }
     },
+    "integer width": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "integer width"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整数位宽无效"
+          }
+        }
+      }
+    },
     "invalid resource path": {
       "extractionState": "manual",
       "localizations": {
@@ -3997,6 +4065,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "索引元数据校验失败"
+          }
+        }
+      }
+    },
+    "missing dictionary index": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "missing dictionary index"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词典索引缺失"
           }
         }
       }
