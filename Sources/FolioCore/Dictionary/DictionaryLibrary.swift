@@ -4,7 +4,7 @@ import GRDB
 /// All archive I/O, decompression, and indexing stays on this actor's executor.
 /// Only immutable Sendable values cross back into the UI.
 public actor DictionaryLibrary: DictionaryRepository {
-    private let database: DatabaseQueue
+    let database: DatabaseQueue
 
     public init(path: String) throws {
         let queue = try DatabaseQueue(path: path)
@@ -29,6 +29,15 @@ public actor DictionaryLibrary: DictionaryRepository {
                     dictionaryID TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
                     path TEXT NOT NULL, payload BLOB NOT NULL,
                     PRIMARY KEY (dictionaryID, path)
+                );
+                """)
+        }
+        migrator.registerMigration("documents-archives-v2") { db in
+            try db.execute(sql: """
+                CREATE TABLE managed_archives (
+                    stem TEXT PRIMARY KEY,
+                    sourceID TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                    snapshot BLOB NOT NULL
                 );
                 """)
         }
@@ -120,44 +129,46 @@ public actor DictionaryLibrary: DictionaryRepository {
 
     /// A selected MDX and matching MDD set commits together, or rolls back together.
     public func importArchives(_ urls: [URL]) throws {
+        try database.write { db in try Self.importArchives(urls, db: db) }
+    }
+
+    static func importArchives(_ urls: [URL], db: Database) throws {
         try Task.checkCancellation()
         let ordered = urls.sorted { $0.pathExtension.lowercased() == "mdx" && $1.pathExtension.lowercased() != "mdx" }
-        try database.write { db in
-            for url in ordered {
-                try Task.checkCancellation()
-                let ext = url.pathExtension.lowercased()
-                guard ext == "mdx" || ext == "mdd" else { throw MDictError.unsupported("the .\(ext) file type") }
-                let reader = try MDictReader(url: url, resourceArchive: ext == "mdd")
-                let stem = url.deletingPathExtension().lastPathComponent.lowercased()
-                if ext == "mdx" {
-                    let existing = try String.fetchOne(db, sql: "SELECT id FROM sources WHERE filename = ?", arguments: [stem])
-                    if let existing {
-                        try db.execute(sql: "DELETE FROM sources WHERE id = ?", arguments: [existing])
-                    }
-                    let id = existing ?? UUID().uuidString.lowercased()
-                    try db.execute(sql: "INSERT INTO sources(id, title, filename) VALUES (?, ?, ?)", arguments: [id, reader.header.title, stem])
-                    var number = 0
-                    try reader.records { headword, raw in
-                        guard let html = String(data: raw, encoding: reader.header.encoding) else { throw MDictError.malformed("definition encoding") }
-                        let cleaned = html.trimmingCharacters(in: CharacterSet(charactersIn: "\0").union(.whitespacesAndNewlines))
-                        let entry = DictionaryEntry(id: "\(id):\(number)", dictionaryID: id, headword: headword,
-                                                    summary: Self.summary(cleaned), html: cleaned)
-                        try Self.insert(entry, db: db)
-                        number += 1
-                    }
-                } else {
-                    guard let id = try String.fetchOne(db, sql: "SELECT id FROM sources WHERE filename = ? AND isSample = 0", arguments: [stem]) else {
-                        throw MDictError.missingDictionary
-                    }
-                    try reader.records { path, data in
-                        guard let normalized = ResourcePath.normalize(path) else { throw MDictError.malformed("invalid resource path") }
-                        try db.execute(sql: "INSERT OR REPLACE INTO resources(dictionaryID, path, payload) VALUES (?, ?, ?)",
-                                       arguments: [id, normalized, data])
-                    }
+        for url in ordered {
+            try Task.checkCancellation()
+            let ext = url.pathExtension.lowercased()
+            guard ext == "mdx" || ext == "mdd" else { throw MDictError.unsupported("the .\(ext) file type") }
+            let reader = try MDictReader(url: url, resourceArchive: ext == "mdd")
+            let stem = url.deletingPathExtension().lastPathComponent.lowercased()
+            if ext == "mdx" {
+                let existing = try String.fetchOne(db, sql: "SELECT id FROM sources WHERE filename = ?", arguments: [stem])
+                if let existing {
+                    try db.execute(sql: "DELETE FROM sources WHERE id = ?", arguments: [existing])
+                }
+                let id = existing ?? UUID().uuidString.lowercased()
+                try db.execute(sql: "INSERT INTO sources(id, title, filename) VALUES (?, ?, ?)", arguments: [id, reader.header.title, stem])
+                var number = 0
+                try reader.records { headword, raw in
+                    guard let html = String(data: raw, encoding: reader.header.encoding) else { throw MDictError.malformed("definition encoding") }
+                    let cleaned = html.trimmingCharacters(in: CharacterSet(charactersIn: "\0").union(.whitespacesAndNewlines))
+                    let entry = DictionaryEntry(id: "\(id):\(number)", dictionaryID: id, headword: headword,
+                                                summary: Self.summary(cleaned), html: cleaned)
+                    try Self.insert(entry, db: db)
+                    number += 1
+                }
+            } else {
+                guard let id = try String.fetchOne(db, sql: "SELECT id FROM sources WHERE filename = ? AND isSample = 0", arguments: [stem]) else {
+                    throw MDictError.missingDictionary
+                }
+                try reader.records { path, data in
+                    guard let normalized = ResourcePath.normalize(path) else { throw MDictError.malformed("invalid resource path") }
+                    try db.execute(sql: "INSERT OR REPLACE INTO resources(dictionaryID, path, payload) VALUES (?, ?, ?)",
+                                   arguments: [id, normalized, data])
                 }
             }
-            try Task.checkCancellation()
         }
+        try Task.checkCancellation()
     }
 
     public func removeSource(id: String) throws {

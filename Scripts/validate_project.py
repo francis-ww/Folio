@@ -39,6 +39,9 @@ def validate(swiftc=None):
                 assert (path.parent / entry["filename"]).is_file()
     for path in (ROOT / "Folio/Resources").rglob("*.plist"):
         plistlib.loads(path.read_bytes())
+    app_info = plistlib.loads((ROOT / "Folio/Resources/Info.plist").read_bytes())
+    assert app_info.get("UIFileSharingEnabled") is True, "Documents sharing must be enabled"
+    assert app_info.get("LSSupportsOpeningDocumentsInPlace") is True, "In-place Documents access must be enabled"
     for path in (ROOT / "Folio/Resources").rglob("*.xcprivacy"):
         plistlib.loads(path.read_bytes())
     for path in (ROOT / "Folio.xcodeproj").rglob("*.xcscheme"):

@@ -25,9 +25,15 @@ struct RootView: View {
                 .tabItem { Label("Library", systemImage: "books.vertical") }
         }
         .tint(Theme.ink)
-        .task { await services.refreshCards() }
+        .task {
+            await services.refreshCards()
+            await services.scanDocuments()
+        }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { services.language.refreshSystemLocale(); Task { await services.refreshCards() } }
+            if phase == .active {
+                services.language.refreshSystemLocale()
+                Task { await services.refreshCards(); await services.scanDocuments() }
+            }
         }
         .alert("Something needs attention", isPresented: Binding(get: { services.error != nil }, set: { if !$0 { services.error = nil } })) {
             Button("OK", role: .cancel) { services.error = nil }

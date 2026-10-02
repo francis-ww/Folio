@@ -52,6 +52,23 @@
         }
       }
     },
+    "%@ needs a matching MDX file. Copy both files into Folio’s folder.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ needs a matching MDX file. Copy both files into Folio’s folder."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 需要同名的 MDX 词典，请将两个文件一并放入 Folio 文件夹。"
+          }
+        }
+      }
+    },
     "%@ text encoding": {
       "extractionState": "manual",
       "localizations": {
@@ -65,6 +82,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 文本编码"
+          }
+        }
+      }
+    },
+    "%@ — %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ — %@"
           }
         }
       }
@@ -342,6 +376,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "生词本，从一个词开始。"
+          }
+        }
+      }
+    },
+    "A dictionary file is still changing. Let the copy finish, then scan again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A dictionary file is still changing. Let the copy finish, then scan again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词典文件仍在写入，请等待复制完成后重新扫描。"
           }
         }
       }
@@ -1162,6 +1213,23 @@
         }
       }
     },
+    "Folio scans its Documents folder when you open the app. Unchanged files are skipped. Keep dictionary files directly inside Folio’s folder.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folio scans its Documents folder when you open the app. Unchanged files are skipped. Keep dictionary files directly inside Folio’s folder."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次打开 Folio，都会自动扫描词库文件夹，未变更的文件无需重复索引。请将词典文件直接放入 Folio 文件夹。"
+          }
+        }
+      }
+    },
     "Folio · a companion for curious minds": {
       "extractionState": "manual",
       "localizations": {
@@ -1175,6 +1243,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Folio · 与好奇心同行"
+          }
+        }
+      }
+    },
+    "Folio’s Documents folder couldn’t be scanned. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folio’s Documents folder couldn’t be scanned. Please try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法扫描 Folio 文件夹，请重试。"
           }
         }
       }
@@ -1553,6 +1638,40 @@
         }
       }
     },
+    "Make room for your dictionaries.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make room for your dictionaries."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "让词库安放于此。"
+          }
+        }
+      }
+    },
+    "More than one dictionary file is named %@. Give each dictionary a unique filename.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More than one dictionary file is named %@. Give each dictionary a unique filename."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存在多个名为 %@ 的词典文件，请为每部词典使用不同的文件名。"
+          }
+        }
+      }
+    },
     "New": {
       "extractionState": "manual",
       "localizations": {
@@ -1583,6 +1702,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "距离下次研习还有 %@"
+          }
+        }
+      }
+    },
+    "No MDX dictionaries found in Folio’s folder.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No MDX dictionaries found in Folio’s folder."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folio 文件夹中还没有 MDX 词典。"
           }
         }
       }
@@ -1740,6 +1876,74 @@
         }
       }
     },
+    "Only regular dictionary files inside Folio’s Documents folder can be used.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only regular dictionary files inside Folio’s Documents folder can be used."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请将完整的词典文件直接放入 Folio 文件夹，不要使用文件夹或符号链接。"
+          }
+        }
+      }
+    },
+    "Open Files App": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Files App"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开文件应用"
+          }
+        }
+      }
+    },
+    "Open Files, go to On My iPhone → Folio, and paste your MDX and MDD files here. On iPad, look under On My iPad.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Files, go to On My iPhone → Folio, and paste your MDX and MDD files here. On iPad, look under On My iPad."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开「文件」应用，前往「我的 iPhone → Folio」，将 MDX 和 MDD 文件粘贴到此文件夹。使用 iPad 时，请前往「我的 iPad」。"
+          }
+        }
+      }
+    },
+    "Open the Files app from your Home Screen, then go to On My iPhone → Folio.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the Files app from your Home Screen, then go to On My iPhone → Folio."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请从主屏幕打开「文件」应用，再前往「我的 iPhone → Folio」。"
+          }
+        }
+      }
+    },
     "Open this word to look up its online definition.": {
       "extractionState": "manual",
       "localizations": {
@@ -1893,6 +2097,23 @@
         }
       }
     },
+    "Reading new dictionaries in the background…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading new dictionaries in the background…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在后台读取新词库…"
+          }
+        }
+      }
+    },
     "Ready to practice": {
       "extractionState": "manual",
       "localizations": {
@@ -1906,6 +2127,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "待研习"
+          }
+        }
+      }
+    },
+    "Refresh Dictionaries": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh Dictionaries"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新扫描词库"
           }
         }
       }
@@ -2025,6 +2263,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除单词及研习记录"
+          }
+        }
+      }
+    },
+    "Removing a dictionary also deletes its MDX and matching MDD files from Folio’s folder. Your saved words and practice history stay on this device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removing a dictionary also deletes its MDX and matching MDD files from Folio’s folder. Your saved words and practice history stay on this device."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除词典时，Folio 文件夹中的 MDX 及配套 MDD 文件也会一并删除。生词本与研习记录仍保留在本机。"
           }
         }
       }
@@ -2297,6 +2552,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在收藏…"
+          }
+        }
+      }
+    },
+    "Scan complete. Some files need attention.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan complete. Some files need attention."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扫描完成，部分文件需要检查。"
+          }
+        }
+      }
+    },
+    "Scanning your Documents folder…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scanning your Documents folder…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在扫描词库文件夹…"
           }
         }
       }
@@ -2607,6 +2896,23 @@
         }
       }
     },
+    "This dictionary couldn’t be indexed. Check the file and scan again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This dictionary couldn’t be indexed. Check the file and scan again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能为这部词典建立索引，请检查文件后重新扫描。"
+          }
+        }
+      }
+    },
     "This dictionary couldn’t be queried. Please try again.": {
       "extractionState": "manual",
       "localizations": {
@@ -2807,6 +3113,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "暂时无法打开 Folio"
+          }
+        }
+      }
+    },
+    "Use matching filenames, such as Oxford.mdx and Oxford.mdd. Return to Folio to start indexing, or tap Refresh Dictionaries.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use matching filenames, such as Oxford.mdx and Oxford.mdd. Return to Folio to start indexing, or tap Refresh Dictionaries."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词典与资源文件须同名，例如 Oxford.mdx 和 Oxford.mdd。返回 Folio 即可开始建立索引，也可轻点「重新扫描词库」。"
           }
         }
       }
@@ -3096,6 +3419,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "有道响应时间较长，请再试一次。"
+          }
+        }
+      }
+    },
+    "Your Documents folder is up to date.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your Documents folder is up to date."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "词库文件夹已同步。"
           }
         }
       }

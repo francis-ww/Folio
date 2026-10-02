@@ -6,10 +6,7 @@ import FolioCore
 final class LibraryViewModel {
     private(set) var sources: [DictionarySource] = []
     private(set) var selection = DictionarySelection()
-    private(set) var isImporting = false
-    private(set) var status: FolioMessage?
     var error: FolioMessage?
-    private var importTask: Task<Void, Never>?
     private var preferenceTask: Task<Void, Never>?
     private var preferenceRequest = UUID()
 
@@ -52,38 +49,11 @@ final class LibraryViewModel {
         }
     }
 
-    func importFiles(_ urls: [URL], services: AppServices) {
-        guard let library = services.library, !isImporting, !urls.isEmpty else { return }
-        isImporting = true
-        status = FolioMessage("Reading and indexing your dictionaries…")
-        error = nil
-        importTask = Task {
-            let accessed = urls.filter { $0.startAccessingSecurityScopedResource() }
-            defer {
-                accessed.forEach { $0.stopAccessingSecurityScopedResource() }
-                isImporting = false
-                importTask = nil
-            }
-            do {
-                try await library.importArchives(urls)
-                services.libraryRevision += 1
-                status = FolioMessage("Your dictionaries are ready.")
-                await refresh(services)
-            } catch is CancellationError {
-                status = FolioMessage("Import cancelled.")
-            } catch {
-                self.error = FolioMessage.from(error, fallback: "Your library couldn’t be updated. Please try again.")
-                status = nil
-            }
-        }
-    }
-
-    func cancelImport() { importTask?.cancel() }
-
     func remove(_ source: DictionarySource, services: AppServices) async {
-        guard let library = services.library, !isImporting else { return }
+        guard let library = services.library, !services.isScanningDocuments else { return }
         do {
-            try await library.removeSource(id: source.id)
+            if let scanner = services.documentsScanner { try await scanner.removeDictionary(id: source.id) }
+            else { try await library.removeSource(id: source.id) }
             services.libraryRevision += 1
             await refresh(services)
         } catch { self.error = FolioMessage.from(error, fallback: "Your library couldn’t be updated. Please try again.") }

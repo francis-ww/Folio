@@ -15,7 +15,7 @@ The Chinese tabs are **查词**, **研习**, **生词本**, and **文库**. Dict
 - `AppLocalization` explicitly selects the corresponding compiled `.lproj` bundle for Foundation and UIKit text. Passing a locale only for number formatting would not reliably select the desired translation. It does not override `Bundle.main` or change `AppleLanguages`.
 - Review intervals use locale-aware numbers and translated minutes, hours, and days. English dictionary headwords retain Georgia; Chinese editorial headers use the scalable system serif font and lighter letter spacing.
 
-The catalog is included in the app resource build phase. The generated Xcode project declares both languages and enables string extraction. UIKit/WebKit accessibility text is updated when the selected locale changes. OS-owned interfaces, such as the Files importer and keyboard, continue to follow the system's own language settings.
+The catalog is included in the app resource build phase. The generated Xcode project declares both languages and enables string extraction. UIKit/WebKit accessibility text is updated when the selected locale changes. OS-owned interfaces, such as the Files app and keyboard, continue to follow the system's own language settings.
 
 ## Verification
 

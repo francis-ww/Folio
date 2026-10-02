@@ -7,6 +7,7 @@ struct DictionarySelectionView: View {
     let onToggle: (String, Bool) -> Void
     let onMove: (IndexSet, Int) -> Void
     let onRemove: (DictionarySource) -> Void
+    var allowsRemoval = true
     @State private var editing = false
 
     var body: some View {
@@ -31,7 +32,7 @@ struct DictionarySelectionView: View {
                         .background(Theme.surface, in: RoundedRectangle(cornerRadius: 14))
                         .contextMenu {
                             if !source.isSample && !source.isOnline {
-                                Button("Remove dictionary", role: .destructive) { onRemove(source) }
+                                Button("Remove dictionary", role: .destructive) { onRemove(source) }.disabled(!allowsRemoval)
                             }
                         }
                 }

@@ -93,6 +93,11 @@ def make_archives():
         sound.setframerate(8000)
         sound.writeframes(b"\0" * 160)
     (OUTPUT / "tiny.mdd").write_bytes(archive([(r"\images\leaf.png", png), (r"\sound\word.wav", audio.getvalue())], resource=True))
+    (OUTPUT / "revised.mdx").write_bytes(archive([
+        ("aurora", b"<p>The first light of dawn.</p>\0"),
+        ("zenith", b"<p>The highest point.</p>\0"),
+    ]))
+    (OUTPUT / "revised.mdd").write_bytes(archive([(r"\images\leaf.png", png)], resource=True))
     (OUTPUT / "broken.mdd").write_bytes(b"invalid archive")
 
 
