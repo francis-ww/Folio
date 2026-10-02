@@ -1,0 +1,118 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unsigned-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Folio for iPhone
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check project and show toolchain
+        run: |
+          set -euo pipefail
+          python3 Scripts/validate_project.py
+          xcodebuild -version
+          xcrun swift --version
+
+      - name: Build unsigned iOS device app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Folio.xcodeproj \
+            -scheme Folio \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/FolioDerivedData" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/FolioSourcePackages" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            ONLY_ACTIVE_ARCH=NO \
+            ARCHS=arm64 \
+            build 2>&1 | tee "$RUNNER_TEMP/folio-device-build.log"
+
+      - name: Package and verify unsigned.ipa
+        run: |
+          set -euo pipefail
+          APP_PATH="$RUNNER_TEMP/FolioDerivedData/Build/Products/Release-iphoneos/Folio.app"
+          PACKAGE_ROOT="$RUNNER_TEMP/FolioPackage"
+          OUTPUT_DIR="$GITHUB_WORKSPACE/build/ipa"
+
+          test -d "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
+          test -x "$APP_PATH/Folio"
+          DEVICE_ARCHS="$(xcrun lipo -archs "$APP_PATH/Folio")"
+          test "$DEVICE_ARCHS" = "arm64"
+
+          mkdir -p "$PACKAGE_ROOT/Payload" "$OUTPUT_DIR"
+          ditto "$APP_PATH" "$PACKAGE_ROOT/Payload/Folio.app"
+          cd "$PACKAGE_ROOT"
+          /usr/bin/zip -q -r -y "$OUTPUT_DIR/unsigned.ipa" Payload
+          /usr/bin/unzip -tq "$OUTPUT_DIR/unsigned.ipa"
+
+          python3 - "$OUTPUT_DIR/unsigned.ipa" <<'PY'
+          import plistlib
+          import sys
+          import zipfile
+
+          with zipfile.ZipFile(sys.argv[1]) as ipa:
+              names = ipa.namelist()
+              assert all(name.startswith("Payload/") for name in names), "Unexpected IPA root"
+              info = plistlib.loads(ipa.read("Payload/Folio.app/Info.plist"))
+              assert "iPhoneOS" in info.get("CFBundleSupportedPlatforms", []), "Not a device build"
+              assert "Payload/Folio.app/" + info["CFBundleExecutable"] in names, "Missing executable"
+              print(f"Verified device IPA: {info['CFBundleIdentifier']} {info['CFBundleShortVersionString']}")
+          PY
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-unsigned-ipa
+          path: build/ipa/unsigned.ipa
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Add download instructions to run summary
+        run: |
+          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          ## Folio unsigned IPA
+
+          Download **folio-unsigned-ipa** from this run's **Artifacts** section.
+          Extract the downloaded artifact ZIP to get **unsigned.ipa**.
+          Load the IPA into Sideloadly on Windows to sign and install it.
+
+          This is a Release arm64 iPhone build. Signing is disabled during the build;
+          Sideloadly supplies the signing identity and device provisioning profile.
+          No Apple credentials or certificates are stored in GitHub Actions.
+          See **docs/WINDOWS_SIDELOADING.md** in the repository for the full guide.
+          EOF
+
+      - name: Upload device build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-device-build-log
+          path: ${{ runner.temp }}/folio-device-build.log
+          if-no-files-found: ignore
+          retention-days: 14
