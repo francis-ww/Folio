@@ -95,11 +95,12 @@ extension DictionaryLibrary {
                                     try reader.readRecordBatch { headword, data in
                                         guard let html = String(data: data, encoding: reader.header.encoding) else { throw MDictError.malformed("definition encoding") }
                                         let cleaned = html.trimmingCharacters(in: CharacterSet(charactersIn: "\0").union(.whitespacesAndNewlines))
-                                        let entry = DictionaryEntry(id: "\(target.id):\(number)", dictionaryID: target.id, headword: headword,
+                                        let decodedHeadword = HTMLEntityDecoder.decode(headword)
+                                        let entry = DictionaryEntry(id: "\(target.id):\(number)", dictionaryID: target.id, headword: decodedHeadword,
                                             summary: Self.summary(cleaned), html: cleaned)
                                         try db.execute(sql: "INSERT INTO entries(id, headword, payload) VALUES (?, ?, ?)",
-                                            arguments: [entry.id, headword, try JSONEncoder().encode(entry)])
-                                        try db.execute(sql: "INSERT INTO entries_fts(rowid, headword) VALUES (?, ?)", arguments: [db.lastInsertedRowID, headword])
+                                            arguments: [entry.id, decodedHeadword, try JSONEncoder().encode(entry)])
+                                        try db.execute(sql: "INSERT INTO entries_fts(rowid, headword) VALUES (?, ?)", arguments: [db.lastInsertedRowID, decodedHeadword])
                                         number += 1
                                     }
                                 }

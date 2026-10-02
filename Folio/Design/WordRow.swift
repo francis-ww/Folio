@@ -11,7 +11,7 @@ struct WordRow: View {
             VStack(alignment: .leading, spacing: 7) {
                 if let source { DictionarySourceTitle(source: source).font(.caption2).foregroundStyle(Theme.muted) }
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(entry.headword).font(Theme.headword).foregroundStyle(Theme.ink)
+                    Text(entry.headword.decodingHTMLEntities).font(Theme.headword).foregroundStyle(Theme.ink)
                     if !entry.partOfSpeech.isEmpty { Text(entry.partOfSpeech).font(.caption).italic().foregroundStyle(Theme.muted) }
                 }
                 Group {

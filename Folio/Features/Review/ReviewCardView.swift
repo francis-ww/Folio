@@ -13,7 +13,7 @@ struct ReviewCardView: View {
                 Spacer()
                 Image(systemName: "bookmark")
             }.foregroundStyle(Theme.muted)
-            Text(card.entry.headword).font(Theme.title).accessibilityAddTraits(.isHeader)
+            Text(card.entry.headword.decodingHTMLEntities).font(Theme.title).accessibilityAddTraits(.isHeader)
             if !card.entry.pronunciation.isEmpty { Text(card.entry.pronunciation).font(.subheadline).foregroundStyle(Theme.muted) }
             Rectangle().fill(Theme.rule).frame(height: 1)
             if isRevealed {

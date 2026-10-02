@@ -17,13 +17,13 @@ struct WordDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(LocalizedStringKey(model.entry.online == nil ? "THE DICTIONARY" : "YOUDAO · ENGLISH–CHINESE"))
                         .font(.caption2.weight(.semibold)).tracking(2).foregroundStyle(Theme.muted)
-                    Text(model.entry.headword).font(Theme.display).textSelection(.enabled)
+                    Text(model.entry.headword.decodingHTMLEntities).font(Theme.display).textSelection(.enabled)
                         .accessibilityAddTraits(.isHeader)
                     if model.entry.online == nil {
                         HStack(spacing: 12) {
                             if !model.entry.pronunciation.isEmpty { Text(model.entry.pronunciation).font(.subheadline).foregroundStyle(Theme.muted) }
                             Button { model.pronounce() } label: { Image(systemName: "speaker.wave.2").font(.body).frame(width: 44, height: 44) }
-                                .accessibilityLabel("Pronounce \(model.entry.headword)")
+                                .accessibilityLabel("Pronounce \(model.entry.headword.decodingHTMLEntities)")
                             Spacer()
                         }
                     }
@@ -41,14 +41,9 @@ struct WordDetailView: View {
                             .font(.caption).foregroundStyle(Theme.muted)
                     }
                     WordDefinitionContent(entry: model.entry, repository: services.dictionary, onLookup: { word in
-                        Task {
-                            do {
-                                let report = try await services.dictionary.lookupAll(word)
-                                try Task.checkCancellation()
-                                linkedWord = (report.results.first { $0.id == model.selectedSourceID } ?? report.results.first)?.entry
-                                if linkedWord == nil { model.error = report.failures.first?.message ?? FolioMessage("No definition was found for %@.", [.text(word)]) }
-                            } catch is CancellationError {} catch { model.error = FolioMessage.from(error, fallback: "This word couldn’t be opened or saved. Please try again.") }
-                        }
+                        navigateTo(word: word)
+                    }, onNavigateToEntry: { word in
+                        navigateTo(word: word)
                     }, onPronounce: { model.pronounce($0) }).id("\(model.entry.dictionaryID):\(services.libraryRevision)")
                     if model.audio.isLoading { ProgressView("Loading pronunciation…").font(.caption) }
                     if let error = model.audio.error { LocalizedMessageText(error).font(.subheadline).foregroundStyle(Theme.muted) }
@@ -74,6 +69,21 @@ struct WordDetailView: View {
         .task(id: services.libraryRevision) { await model.resolve(using: services.dictionary) }
         .onDisappear { model.stopSpeaking() }
         .navigationDestination(item: $linkedWord) { WordDetailView(entry: $0, services: services) }
+    }
+
+    private func navigateTo(word: String) {
+        Task {
+            do {
+                let report = try await services.dictionary.lookupAll(word)
+                try Task.checkCancellation()
+                linkedWord = (report.results.first { $0.id == model.selectedSourceID } ?? report.results.first)?.entry
+                if linkedWord == nil {
+                    model.error = report.failures.first?.message ?? FolioMessage("No definition was found for %@.", [.text(word)])
+                }
+            } catch is CancellationError {} catch {
+                model.error = FolioMessage.from(error, fallback: "This word couldn’t be opened or saved. Please try again.")
+            }
+        }
     }
 }
 

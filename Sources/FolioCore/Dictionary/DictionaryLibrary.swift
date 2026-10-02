@@ -84,28 +84,31 @@ public actor DictionaryLibrary: DictionaryRepository {
         let trimmed = String(query.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
         if let sourceID, let index = try definitionIndex(sourceID) { return try Self.searchIndex(trimmed, index: index) }
         let legacy = try database.read { db in
-            let rows: [Row]
             if trimmed.isEmpty {
-                rows = try Row.fetchAll(db, sql: "SELECT payload FROM entries WHERE (? IS NULL OR dictionaryID = ?) ORDER BY headword LIMIT 30",
-                                        arguments: [sourceID, sourceID])
+                return try Self.browseEntries(in: db, dictionaryID: sourceID, limit: 30)
             } else {
+                let decodedQuery = HTMLEntityDecoder.decode(trimmed)
                 // Quote each token so user input cannot become an FTS operator.
-                let tokens = trimmed.split(whereSeparator: { $0.isWhitespace })
+                let tokens = decodedQuery.split(whereSeparator: { $0.isWhitespace })
                 let match = tokens.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"*" }.joined(separator: " AND ")
-                rows = try Row.fetchAll(db, sql: """
+                let rows = try Row.fetchAll(db, sql: """
                     SELECT e.payload FROM entries e JOIN entries_fts f ON f.rowid = e.rowid
                     WHERE entries_fts MATCH ? AND (? IS NULL OR e.dictionaryID = ?)
                     ORDER BY (e.headword = ? COLLATE NOCASE) DESC, length(e.headword), e.headword LIMIT 50
-                    """, arguments: [match, sourceID, sourceID, trimmed])
+                    """, arguments: [match, sourceID, sourceID, decodedQuery])
+                return try rows.map { try JSONDecoder().decode(DictionaryEntry.self, from: $0["payload"]) }
             }
-            return try rows.map { try JSONDecoder().decode(DictionaryEntry.self, from: $0["payload"]) }
         }
         guard sourceID == nil else { return legacy }
         var values = legacy
         for id in try indexedSourceIDs() {
             if let index = try definitionIndex(id) { values += try Self.searchIndex(trimmed, index: index) }
         }
-        return Array(values.sorted { $0.headword.localizedCaseInsensitiveCompare($1.headword) == .orderedAscending }.prefix(trimmed.isEmpty ? 30 : 50))
+        if trimmed.isEmpty {
+            var seen = Set<String>()
+            return values.filter { seen.insert($0.id).inserted && seen.insert($0.headword.lowercased()).inserted }.shuffled()
+        }
+        return Array(values.sorted { $0.headword.localizedCaseInsensitiveCompare($1.headword) == .orderedAscending }.prefix(50))
     }
 
     public func entry(id: String) throws -> DictionaryEntry? {
@@ -120,19 +123,106 @@ public actor DictionaryLibrary: DictionaryRepository {
         let indexed = try definitionIndex(dictionaryID)
         let queue = indexed?.database ?? database
         return try queue.read { db in
-            var target = headword
+            var target = HTMLEntityDecoder.decode(headword)
             var visited: Set<String> = []
             for _ in 0..<12 {
-                let sql = indexed == nil ? "SELECT payload FROM entries WHERE headword = ? AND dictionaryID = ? LIMIT 1" : "SELECT payload FROM entries WHERE headword = ? LIMIT 1"
-                let arguments: StatementArguments = indexed == nil ? [target, dictionaryID] : [target]
+                let escaped = HTMLEntityDecoder.escape(target)
+                let sql = indexed == nil
+                    ? "SELECT payload FROM entries WHERE (headword = ? OR headword = ?) AND dictionaryID = ? LIMIT 1"
+                    : "SELECT payload FROM entries WHERE (headword = ? OR headword = ?) LIMIT 1"
+                let arguments: StatementArguments = indexed == nil ? [target, escaped, dictionaryID] : [target, escaped]
                 guard visited.insert(target.lowercased()).inserted,
                       let data = try Data.fetchOne(db, sql: sql, arguments: arguments) else { return nil }
                 let entry = try JSONDecoder().decode(DictionaryEntry.self, from: data)
-                if entry.html.hasPrefix("@@@LINK=") { target = String(entry.html.dropFirst(8)).trimmingCharacters(in: .whitespacesAndNewlines) }
-                else { return entry }
+                if entry.html.hasPrefix("@@@LINK=") {
+                    target = HTMLEntityDecoder.decode(String(entry.html.dropFirst(8)).trimmingCharacters(in: .whitespacesAndNewlines))
+                } else {
+                    return entry
+                }
             }
             throw MDictError.malformed("dictionary link cycle")
         }
+    }
+
+    /// Curated random sampling of valid headwords for dictionary browsing.
+    /// Excludes symbols, numbers, affixes/suffixes, and redirect definitions.
+    static func browseEntries(in db: Database, dictionaryID: String? = nil, limit: Int = 30) throws -> [DictionaryEntry] {
+        let hasDict = dictionaryID != nil
+        let whereClause = hasDict
+            ? "WHERE dictionaryID = ? AND headword GLOB '[a-zA-Z]*' AND headword NOT GLOB '*-' AND headword NOT GLOB '[Ss][Ee][Ee] *'"
+            : "WHERE headword GLOB '[a-zA-Z]*' AND headword NOT GLOB '*-' AND headword NOT GLOB '[Ss][Ee][Ee] *'"
+        let whereArgs: StatementArguments = hasDict ? [dictionaryID] : []
+
+        guard let stats = try Row.fetchOne(db, sql: "SELECT count(*), min(rowid), max(rowid) FROM entries \(whereClause)", arguments: whereArgs),
+              let count = stats[0] as Int?, count > 0,
+              let minRow = stats[1] as Int64?,
+              let maxRow = stats[2] as Int64? else {
+            return []
+        }
+
+        var results: [DictionaryEntry] = []
+        var seenIDs = Set<String>()
+        var seenHeadwords = Set<String>()
+
+        func appendIfValid(_ data: Data) {
+            guard let entry = try? JSONDecoder().decode(DictionaryEntry.self, from: data) else { return }
+            guard entry.isValidForBrowse else { return }
+            guard seenIDs.insert(entry.id).inserted else { return }
+            guard seenHeadwords.insert(entry.headword.lowercased()).inserted else { return }
+            results.append(entry)
+        }
+
+        // 1. Prioritize curated common English headwords
+        let curatedSample = CuratedHeadwords.common.shuffled().prefix(40)
+        let placeholders = Array(repeating: "?", count: curatedSample.count).joined(separator: ",")
+        let curatedWhere = hasDict
+            ? "WHERE dictionaryID = ? AND headword IN (\(placeholders)) AND headword GLOB '[a-zA-Z]*' AND headword NOT GLOB '*-' AND headword NOT GLOB '[Ss][Ee][Ee] *'"
+            : "WHERE headword IN (\(placeholders)) AND headword GLOB '[a-zA-Z]*' AND headword NOT GLOB '*-' AND headword NOT GLOB '[Ss][Ee][Ee] *'"
+        var curatedArgs: [any DatabaseValueConvertible] = []
+        if let dictionaryID { curatedArgs.append(dictionaryID) }
+        for word in curatedSample { curatedArgs.append(word) }
+
+        for row in try Row.fetchAll(db, sql: "SELECT payload FROM entries \(curatedWhere) LIMIT \(limit)", arguments: StatementArguments(curatedArgs)) {
+            appendIfValid(row["payload"])
+            if results.count >= limit { break }
+        }
+
+        // 2. Sample random entries across the dictionary index
+        if results.count < limit {
+            if count <= limit * 2 {
+                let allRows = try Row.fetchAll(db, sql: "SELECT payload FROM entries \(whereClause) LIMIT 100", arguments: whereArgs)
+                for row in allRows.shuffled() {
+                    appendIfValid(row["payload"])
+                    if results.count >= limit { break }
+                }
+            } else {
+                var attempts = 0
+                while results.count < limit && attempts < 3 {
+                    attempts += 1
+                    let needed = limit - results.count
+                    let sampleCount = min(Int(count), max(needed * 4, 30))
+                    var targetRowIDs = Set<Int64>()
+                    while targetRowIDs.count < sampleCount {
+                        let id = Int64.random(in: minRow...maxRow)
+                        targetRowIDs.insert(id)
+                    }
+                    let idPlaceholders = Array(repeating: "?", count: targetRowIDs.count).joined(separator: ",")
+                    let sampleWhere = hasDict
+                        ? "WHERE dictionaryID = ? AND rowid IN (\(idPlaceholders)) AND headword GLOB '[a-zA-Z]*' AND headword NOT GLOB '*-' AND headword NOT GLOB '[Ss][Ee][Ee] *'"
+                        : "WHERE rowid IN (\(idPlaceholders)) AND headword GLOB '[a-zA-Z]*' AND headword NOT GLOB '*-' AND headword NOT GLOB '[Ss][Ee][Ee] *'"
+                    var sampleArgs: [any DatabaseValueConvertible] = []
+                    if let dictionaryID { sampleArgs.append(dictionaryID) }
+                    for id in targetRowIDs { sampleArgs.append(id) }
+
+                    for row in try Row.fetchAll(db, sql: "SELECT payload FROM entries \(sampleWhere) LIMIT \(limit)", arguments: StatementArguments(sampleArgs)) {
+                        appendIfValid(row["payload"])
+                        if results.count >= limit { break }
+                    }
+                }
+            }
+        }
+
+        return Array(results.prefix(limit))
     }
 
     public func sources() throws -> [DictionarySource] {
@@ -177,13 +267,15 @@ public actor DictionaryLibrary: DictionaryRepository {
     }
 
     static func summary(_ html: String) -> String {
-        if html.hasPrefix("@@@LINK=") { return "See " + html.dropFirst(8) }
+        if html.hasPrefix("@@@LINK=") {
+            let target = HTMLEntityDecoder.decode(String(html.dropFirst(8))).trimmingCharacters(in: .whitespacesAndNewlines)
+            return "See " + target
+        }
         let text = html.replacingOccurrences(of: "(?is)<(script|style)\\b[^>]*>.*?</\\1\\s*>", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&amp;", with: "&")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return String(text.prefix(400))
+        let decoded = HTMLEntityDecoder.decode(text)
+        return String(decoded.prefix(400))
     }
 }

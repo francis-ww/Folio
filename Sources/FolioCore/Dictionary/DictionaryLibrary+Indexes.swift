@@ -46,16 +46,16 @@ extension DictionaryLibrary {
 
     static func searchIndex(_ query: String, index: MDictIndexDatabase) throws -> [DictionaryEntry] {
         try index.database.read { db in
-            let rows: [Row]
-            if query.isEmpty { rows = try Row.fetchAll(db, sql: "SELECT payload FROM entries ORDER BY headword LIMIT 30") }
-            else {
-                let tokens = query.split(whereSeparator: { $0.isWhitespace })
-                let match = tokens.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"*" }.joined(separator: " AND ")
-                rows = try Row.fetchAll(db, sql: """
-                    SELECT e.payload FROM entries e JOIN entries_fts f ON f.rowid = e.rowid
-                    WHERE entries_fts MATCH ? ORDER BY (e.headword = ? COLLATE NOCASE) DESC, length(e.headword), e.headword LIMIT 50
-                    """, arguments: [match, query])
+            if query.isEmpty {
+                return try DictionaryLibrary.browseEntries(in: db, dictionaryID: nil, limit: 30)
             }
+            let decodedQuery = HTMLEntityDecoder.decode(query)
+            let tokens = decodedQuery.split(whereSeparator: { $0.isWhitespace })
+            let match = tokens.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"*" }.joined(separator: " AND ")
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT e.payload FROM entries e JOIN entries_fts f ON f.rowid = e.rowid
+                WHERE entries_fts MATCH ? ORDER BY (e.headword = ? COLLATE NOCASE) DESC, length(e.headword), e.headword LIMIT 50
+                """, arguments: [match, decodedQuery])
             return try rows.map { try JSONDecoder().decode(DictionaryEntry.self, from: $0["payload"]) }
         }
     }

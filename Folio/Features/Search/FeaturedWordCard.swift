@@ -11,7 +11,7 @@ struct FeaturedWordCard: View {
                     Spacer()
                     Image(systemName: "arrow.up.right")
                 }.foregroundStyle(Theme.accent)
-                Text(entry.headword).font(Theme.title).foregroundStyle(Theme.ink)
+                Text(entry.headword.decodingHTMLEntities).font(Theme.title).foregroundStyle(Theme.ink)
                 Text(entry.summary).font(.subheadline).lineSpacing(4).foregroundStyle(Theme.muted)
                 Text("From the Folio sample dictionary").font(.caption2).foregroundStyle(Theme.muted)
             }.padding(24).frame(maxWidth: .infinity, alignment: .leading)

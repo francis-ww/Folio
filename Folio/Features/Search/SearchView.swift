@@ -16,7 +16,7 @@ struct SearchView: View {
             VStack(alignment: .leading, spacing: 24) {
                 EditorialHeader(eyebrow: "Folio · a companion for curious minds", title: "Words, worth\nkeeping.", subtitle: "Find a meaning. Keep a little wonder.")
                 SearchField(query: $model.query, isSearching: model.isSearching)
-                if model.query.isEmpty { FeaturedWordCard(entry: SampleData.entries[0]) }
+                if model.query.isEmpty { FeaturedWordCard(entry: model.results.first ?? SampleData.entries[0]) }
                 HStack {
                     Text(LocalizedStringKey(model.query.isEmpty ? "EXPLORE THE DICTIONARY" : "SEARCH RESULTS"))
                         .font(.caption2.weight(.semibold)).tracking(1.6).foregroundStyle(Theme.muted)

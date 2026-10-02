@@ -11,18 +11,74 @@ public struct DictionaryEntry: Identifiable, Codable, Hashable, Sendable {
     public let html: String
     public let online: OnlineDefinition?
 
+    private enum CodingKeys: String, CodingKey {
+        case id, dictionaryID, headword, pronunciation, partOfSpeech, summary, example, html, online
+    }
+
     public init(id: String, dictionaryID: String = "folio-sample", headword: String,
                 pronunciation: String = "", partOfSpeech: String = "",
                 summary: String, example: String = "", html: String = "", online: OnlineDefinition? = nil) {
         self.id = id
         self.dictionaryID = dictionaryID
-        self.headword = headword
+        self.headword = HTMLEntityDecoder.decode(headword)
         self.pronunciation = pronunciation
         self.partOfSpeech = partOfSpeech
         self.summary = summary
         self.example = example
         self.html = html
         self.online = online
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        dictionaryID = try container.decodeIfPresent(String.self, forKey: .dictionaryID) ?? "folio-sample"
+        let rawHeadword = try container.decode(String.self, forKey: .headword)
+        headword = HTMLEntityDecoder.decode(rawHeadword)
+        pronunciation = try container.decodeIfPresent(String.self, forKey: .pronunciation) ?? ""
+        partOfSpeech = try container.decodeIfPresent(String.self, forKey: .partOfSpeech) ?? ""
+        summary = try container.decodeIfPresent(String.self, forKey: .summary) ?? ""
+        example = try container.decodeIfPresent(String.self, forKey: .example) ?? ""
+        html = try container.decodeIfPresent(String.self, forKey: .html) ?? ""
+        online = try container.decodeIfPresent(OnlineDefinition.self, forKey: .online)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(dictionaryID, forKey: .dictionaryID)
+        try container.encode(headword, forKey: .headword)
+        try container.encode(pronunciation, forKey: .pronunciation)
+        try container.encode(partOfSpeech, forKey: .partOfSpeech)
+        try container.encode(summary, forKey: .summary)
+        try container.encode(example, forKey: .example)
+        try container.encode(html, forKey: .html)
+        try container.encodeIfPresent(online, forKey: .online)
+    }
+
+    public var displayHeadword: String { headword }
+
+    /// Filter criteria for browse / featured words:
+    /// - Require starting with [a-zA-Z]
+    /// - Exclude affixes and suffixes (e.g. starting with - or ')
+    /// - Exclude jump/redirect definitions (@@@LINK= or See )
+    public var isValidForBrowse: Bool {
+        guard let first = headword.first, first.isASCII && first.isLetter else { return false }
+        if headword.hasPrefix("-") || headword.hasPrefix("'") || headword.hasSuffix("-") || headword.hasSuffix("'") {
+            return false
+        }
+        if headword.lowercased().hasPrefix("see ") {
+            return false
+        }
+        let cleanHTML = html.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanHTML.hasPrefix("@@@LINK=") || cleanHTML.hasPrefix("See ") {
+            return false
+        }
+        let cleanSummary = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanSummary.hasPrefix("@@@LINK=") || cleanSummary.hasPrefix("See ") {
+            return false
+        }
+        return true
     }
 
     // Navigation and list identity never hash potentially large definition HTML.

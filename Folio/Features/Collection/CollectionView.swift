@@ -38,7 +38,7 @@ struct CollectionView: View {
         }.background(Theme.paper).toolbar(.hidden, for: .navigationBar)
             .task { await services.refreshCards() }
             .scrollDismissesKeyboard(.interactively)
-            .confirmationDialog("Remove \(removing?.entry.headword ?? "") from your collection?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
+            .confirmationDialog("Remove \(removing?.entry.headword.decodingHTMLEntities ?? "") from your collection?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
                 Button("Remove word and review history", role: .destructive) {
                     guard let card = removing else { return }
                     Task {
