@@ -86,7 +86,7 @@ struct DictionaryLibraryTests {
         #expect(entries == ["alias", "aurora", "bloom", "redirect"])
     }
 
-    @Test(arguments: ["encrypted", "old-version", "corrupt", "truncated"])
+    @Test(arguments: ["old-version", "corrupt", "truncated"])
     func rejectsUnsupportedAndDamagedArchives(_ name: String) throws {
         let url = try fixture(name, "mdx")
         #expect(throws: (any Error).self) {

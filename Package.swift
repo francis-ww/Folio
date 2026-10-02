@@ -5,10 +5,14 @@ let package = Package(
     name: "FolioCore",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [.library(name: "FolioCore", targets: ["FolioCore"])],
-    dependencies: [.package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.0.0")],
+    dependencies: [
+        .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.0.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", exact: "3.9.0")
+    ],
     targets: [
         .target(name: "FolioArchive", linkerSettings: [.linkedLibrary("z")]),
-        .target(name: "FolioCore", dependencies: ["FolioArchive", .product(name: "GRDB", package: "GRDB.swift")]),
+        .target(name: "FolioCore", dependencies: ["FolioArchive", .product(name: "GRDB", package: "GRDB.swift"),
+                                               .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux, .windows]))]),
         .testTarget(name: "FolioCoreTests", dependencies: ["FolioCore"], resources: [.copy("Fixtures")])
     ],
     swiftLanguageModes: [.v6]

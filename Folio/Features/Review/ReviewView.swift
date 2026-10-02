@@ -41,7 +41,7 @@ struct ReviewView: View {
                     ContentUnavailableView {
                         Label("Room to breathe.", systemImage: "leaf")
                     } description: {
-                        Text(services.cards.isEmpty ? "Save a word in Discover to begin your collection." : "You’re all caught up. Your next words will appear when they’re due.")
+                        Text(LocalizedStringKey(services.cards.isEmpty ? "Save a word in Search to begin your collection." : "You’re all caught up. Your next words will appear when they’re due."))
                     }
                     if let next = services.cards.map(\.memory.due).filter({ $0 > .now }).min() {
                         Text("Next review \(next, style: .relative) from now").font(.subheadline).foregroundStyle(Theme.muted)
@@ -50,7 +50,7 @@ struct ReviewView: View {
                         .buttonStyle(PrimaryButtonStyle())
                 }
                 if let error = model.error {
-                    Text(error).font(.subheadline).foregroundStyle(.red)
+                    LocalizedMessageText(error).font(.subheadline).foregroundStyle(Theme.error)
                     Button("Restart session") { Task { await model.begin(); await services.refreshCards() } }
                         .disabled(model.isSaving)
                 }

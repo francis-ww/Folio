@@ -28,10 +28,12 @@ def block(data, compressed=True):
     return struct.pack("<I", 2 if compressed else 0) + struct.pack(">I", zlib.adler32(data)) + (zlib.compress(data) if compressed else data)
 
 
-def archive(records, *, resource=False, compressed=True, encrypted="No", engine="2.0"):
+def archive(records, *, resource=False, compressed=True, encrypted="No", engine="2.0",
+            block_transform=None, index_transform=None, metadata_transform=None, extra_attributes=""):
     encoding = "utf-16le" if resource else "utf-8"
     width = 2 if resource else 1
-    header = f'<Dictionary GeneratedByEngineVersion="{engine}" Encoding="UTF-8" Encrypted="{encrypted}" Title="Tiny original dictionary"/>\0'.encode("utf-16le")
+    attributes = f" {extra_attributes}" if extra_attributes else ""
+    header = f'<Dictionary GeneratedByEngineVersion="{engine}" Encoding="UTF-8" Encrypted="{encrypted}" Title="Tiny original dictionary"{attributes}/>\0'.encode("utf-16le")
     result = struct.pack(">I", len(header)) + header + struct.pack("<I", zlib.adler32(header))
     keys, content, offset = [], bytearray(), 0
     for name, value in records:
@@ -45,6 +47,8 @@ def archive(records, *, resource=False, compressed=True, encrypted="No", engine=
     for group in groups:
         raw = b"".join(u64(position) + key.encode(encoding) + b"\0" * width for position, key in group)
         packed = block(raw, compressed)
+        if block_transform:
+            packed = block_transform(packed)
         key_blocks.append(packed)
         info.extend(u64(len(group)))
         for name in [group[0][1], group[-1][1]]:
@@ -52,11 +56,15 @@ def archive(records, *, resource=False, compressed=True, encrypted="No", engine=
             info.extend(struct.pack(">H", len(encoded) // width) + encoded + b"\0" * width)
         info.extend(u64(len(packed)) + u64(len(raw)))
     packed_info = block(bytes(info))
+    if index_transform:
+        packed_info = index_transform(packed_info)
     numbers = u64(len(groups)) + u64(len(keys)) + u64(len(info)) + u64(len(packed_info)) + u64(sum(map(len, key_blocks)))
-    result += numbers + struct.pack(">I", zlib.adler32(numbers)) + packed_info + b"".join(key_blocks)
+    result += (metadata_transform(numbers) if metadata_transform else numbers) + struct.pack(">I", zlib.adler32(numbers)) + packed_info + b"".join(key_blocks)
     # Small blocks deliberately split individual records, including UTF-8 characters.
     records_blocks = [bytes(content[i:i+23]) for i in range(0, len(content), 23)]
     packed_records = [block(data, compressed) for data in records_blocks]
+    if block_transform:
+        packed_records = [block_transform(data) for data in packed_records]
     record_info = b"".join(u64(len(packed)) + u64(len(raw)) for packed, raw in zip(packed_records, records_blocks))
     result += u64(len(packed_records)) + u64(len(keys)) + u64(len(record_info)) + u64(sum(map(len, packed_records)))
     return result + record_info + b"".join(packed_records)
@@ -72,7 +80,6 @@ def make_archives():
     valid = archive(definitions)
     (OUTPUT / "tiny.mdx").write_bytes(valid)
     (OUTPUT / "uncompressed.mdx").write_bytes(archive(definitions, compressed=False))
-    (OUTPUT / "encrypted.mdx").write_bytes(archive(definitions, encrypted="2"))
     (OUTPUT / "old-version.mdx").write_bytes(archive(definitions, engine="1.2"))
     corrupted = bytearray(valid)
     corrupted[-1] ^= 0xff
@@ -129,4 +136,6 @@ if __name__ == "__main__":
         sys.path.insert(0, str(args.fsrs_path.resolve()))
     OUTPUT.mkdir(parents=True, exist_ok=True)
     make_archives()
+    from generate_encryption_fixtures import make_encrypted_archives
+    make_encrypted_archives()
     make_fsrs()

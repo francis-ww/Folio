@@ -1,0 +1,19 @@
+{
+  "errorCode": "0",
+  "result": [{
+    "ec": {
+      "basic": {
+        "ukPhonetic": "ɪˈfem.ər.əl",
+        "usPhonetic": "ɪˈfem.ɚ.əl",
+        "ukSpeech": "http://dict.youdao.com/dictvoice?audio=ephemeral&type=1",
+        "usSpeech": "https://dict.youdao.com/dictvoice?audio=ephemeral&type=2",
+        "explains": [{"text": "adj.", "explain": ["短暂的；转瞬即逝的"]}]
+      },
+      "web": [{"phrase": "ephemeral beauty", "meaning": "短暂的美丽"}],
+      "sentenceSample": [{
+        "sentence": "The garden held the ephemeral beauty of the first snow.",
+        "translation": "花园留住了初雪转瞬即逝的美。"
+      }]
+    }
+  }]
+}

@@ -12,9 +12,10 @@ final class StoredWord {
     var due: Date
 
     init(entry: DictionaryEntry, at date: Date) throws {
+        let snapshot = entry.vocabularySnapshot
         id = UUID()
-        entryID = entry.id
-        entryData = try JSONEncoder().encode(entry)
+        entryID = snapshot.id
+        entryData = try JSONEncoder().encode(snapshot)
         memoryData = try JSONEncoder().encode(MemoryState(due: date))
         addedAt = date
         due = date

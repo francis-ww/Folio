@@ -7,8 +7,11 @@ struct NativeDefinition: View {
         VStack(alignment: .leading, spacing: 22) {
             if !entry.partOfSpeech.isEmpty { Text(entry.partOfSpeech).font(.subheadline).italic().foregroundStyle(Theme.accent) }
             HStack(alignment: .top, spacing: 14) {
-                Text("01").font(.caption.monospacedDigit()).foregroundStyle(Theme.muted).padding(.top, 5)
-                Text(entry.summary).font(.title3).lineSpacing(6).textSelection(.enabled)
+                Text(verbatim: "01").font(.caption.monospacedDigit()).foregroundStyle(Theme.muted).padding(.top, 5)
+                Group {
+                    if entry.dictionaryID == "youdao-online" && entry.online == nil { Text("Open this word to look up its online definition.") }
+                    else { Text(entry.summary) }
+                }.font(.title3).lineSpacing(6).textSelection(.enabled)
             }
             if !entry.example.isEmpty {
                 HStack(alignment: .top, spacing: 16) {

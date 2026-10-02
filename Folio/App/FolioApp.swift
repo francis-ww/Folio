@@ -1,4 +1,5 @@
 import SwiftUI
+import FolioCore
 
 @main
 struct FolioApp: App {
@@ -7,7 +8,9 @@ struct FolioApp: App {
 
 private struct AppBootstrapView: View {
     @State private var services: AppServices?
-    @State private var error: String?
+    @State private var error: FolioMessage?
+    @State private var language = AppLanguageManager()
+    @State private var appearance = AppAppearanceManager()
     @State private var attempt = 0
 
     var body: some View {
@@ -16,7 +19,7 @@ private struct AppBootstrapView: View {
             else if let error {
                 ContentUnavailableView {
                     Label("Unable to open Folio", systemImage: "book.closed")
-                } description: { Text(error) } actions: {
+                } description: { LocalizedMessageText(error) } actions: {
                     Button("Try again") { self.error = nil; attempt += 1 }
                 }
             } else {
@@ -27,10 +30,13 @@ private struct AppBootstrapView: View {
             }
         }
         .tint(Theme.ink)
+        .environment(\.locale, language.currentLocale)
+        .preferredColorScheme(appearance.selection.colorScheme)
+        .onReceive(NotificationCenter.default.publisher(for: NSLocale.currentLocaleDidChangeNotification)) { _ in language.refreshSystemLocale() }
         .task(id: attempt) {
             guard services == nil else { return }
-            do { services = try await AppServices.makeLive() }
-            catch { self.error = error.localizedDescription }
+            do { services = try await AppServices.makeLive(language: language, appearance: appearance) }
+            catch { self.error = FolioMessage.from(error, fallback: "Folio couldn’t open its library. Please try again.") }
         }
     }
 }

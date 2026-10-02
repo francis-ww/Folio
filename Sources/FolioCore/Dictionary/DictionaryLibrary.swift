@@ -46,20 +46,29 @@ public actor DictionaryLibrary: DictionaryRepository {
     }
 
     public func search(_ query: String) throws -> [DictionaryEntry] {
+        try search(query, sourceID: nil)
+    }
+
+    public func search(_ query: String, dictionaryID: String) throws -> [DictionaryEntry] {
+        try search(query, sourceID: dictionaryID)
+    }
+
+    private func search(_ query: String, sourceID: String?) throws -> [DictionaryEntry] {
         let trimmed = String(query.trimmingCharacters(in: .whitespacesAndNewlines).prefix(200))
         return try database.read { db in
             let rows: [Row]
             if trimmed.isEmpty {
-                rows = try Row.fetchAll(db, sql: "SELECT payload FROM entries ORDER BY headword LIMIT 30")
+                rows = try Row.fetchAll(db, sql: "SELECT payload FROM entries WHERE (? IS NULL OR dictionaryID = ?) ORDER BY headword LIMIT 30",
+                                        arguments: [sourceID, sourceID])
             } else {
                 // Quote each token so user input cannot become an FTS operator.
                 let tokens = trimmed.split(whereSeparator: { $0.isWhitespace })
                 let match = tokens.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"*" }.joined(separator: " AND ")
                 rows = try Row.fetchAll(db, sql: """
                     SELECT e.payload FROM entries e JOIN entries_fts f ON f.rowid = e.rowid
-                    WHERE entries_fts MATCH ?
+                    WHERE entries_fts MATCH ? AND (? IS NULL OR e.dictionaryID = ?)
                     ORDER BY (e.headword = ? COLLATE NOCASE) DESC, length(e.headword), e.headword LIMIT 50
-                    """, arguments: [match, trimmed])
+                    """, arguments: [match, sourceID, sourceID, trimmed])
             }
             return try rows.map { try JSONDecoder().decode(DictionaryEntry.self, from: $0["payload"]) }
         }

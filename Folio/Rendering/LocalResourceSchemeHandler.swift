@@ -8,6 +8,7 @@ import FolioCore
     private let repository: any DictionaryRepository
     private let dictionaryID: String
     private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    var isDark = false
 
     init(repository: any DictionaryRepository, dictionaryID: String) {
         self.repository = repository
@@ -16,16 +17,22 @@ import FolioCore
 
     func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
         let id = ObjectIdentifier(urlSchemeTask)
+        let dark = isDark
         tasks[id] = Task { @MainActor in
             defer { tasks[id] = nil }
             do {
                 guard let url = urlSchemeTask.request.url, url.host == dictionaryID,
-                      let data = try await repository.resource(path: url.path, dictionaryID: dictionaryID) else {
+                      let original = try await repository.resource(path: url.path, dictionaryID: dictionaryID) else {
                     throw URLError(.fileDoesNotExist)
                 }
+                let mime = ResourcePath.mimeType(url.path)
+                let data = await Task.detached(priority: .userInitiated) {
+                    guard dark, mime == "text/css", let css = String(data: original, encoding: .utf8) ?? String(data: original, encoding: .utf16) else { return original }
+                    return Data(DictionaryHTMLDocument.normalizeCSS(css, dark: true).utf8)
+                }.value
                 guard !Task.isCancelled, tasks[id] != nil else { return }
-                let response = URLResponse(url: url, mimeType: ResourcePath.mimeType(url.path),
-                                           expectedContentLength: data.count, textEncodingName: nil)
+                let response = URLResponse(url: url, mimeType: mime,
+                                           expectedContentLength: data.count, textEncodingName: dark && mime == "text/css" ? "utf-8" : nil)
                 urlSchemeTask.didReceive(response)
                 urlSchemeTask.didReceive(data)
                 urlSchemeTask.didFinish()

@@ -9,7 +9,7 @@ final class ReviewViewModel {
     private(set) var total = 0
     private(set) var isSaving = false
     var isRevealed = false
-    var error: String?
+    var error: FolioMessage?
     private(set) var hasStarted = false
     private let vocabulary: any VocabularyRepository
     private var sessionDate = Date.now
@@ -28,19 +28,13 @@ final class ReviewViewModel {
             isRevealed = false
             hasStarted = true
             error = nil
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = FolioMessage.from(error, fallback: "Your review couldn’t be updated. Please try again.") }
     }
 
-    func interval(for rating: ReviewRating) -> String {
-        guard let current else { return "" }
+    func interval(for rating: ReviewRating) -> TimeInterval {
+        guard let current else { return 0 }
         let next = FSRSScheduler().review(current.memory, rating: rating, at: sessionDate)
-        let seconds = next.due.timeIntervalSince(sessionDate)
-        if seconds < 3_600 {
-            let minutes = seconds / 60
-            return minutes == minutes.rounded() ? "\(Int(minutes))m" : "\(minutes.formatted(.number.precision(.fractionLength(1))))m"
-        }
-        let days = Int((seconds / 86_400).rounded())
-        return "\(days)d"
+        return max(0, next.due.timeIntervalSince(sessionDate))
     }
 
     func reveal() { sessionDate = .now; isRevealed = true }
@@ -56,6 +50,6 @@ final class ReviewViewModel {
             completed += 1
             isRevealed = false
             error = nil
-        } catch { self.error = error.localizedDescription }
+        } catch { self.error = FolioMessage.from(error, fallback: "Your review couldn’t be updated. Please try again.") }
     }
 }

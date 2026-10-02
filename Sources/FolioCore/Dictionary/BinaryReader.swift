@@ -73,11 +73,14 @@ enum ArchiveCompression {
     }
 
     static func unpack(_ block: Data, expectedSize: Int) throws -> Data {
-        guard expectedSize <= 64 * 1_024 * 1_024 else { throw MDictError.limitExceeded }
+        guard expectedSize >= 0 else { throw MDictError.malformed("negative block size") }
+        guard expectedSize <= 64 * 1_024 * 1_024, block.count <= 64 * 1_024 * 1_024 else { throw MDictError.limitExceeded }
         var cursor = BinaryCursor(data: block)
-        let compression = try cursor.integer(4, littleEndian: true)
+        let descriptor = try cursor.integer(4, littleEndian: true)
+        let compression = descriptor & 0xf
         let checksum = try cursor.integer(4)
-        let payload = try cursor.bytes(cursor.remaining)
+        let payload = try ArchiveDecryption.blockPayload(cursor.bytes(cursor.remaining), descriptor: descriptor,
+                                                         checksumBytes: block.subdata(in: 4 ..< 8))
         let output: Data
         switch compression {
         case 0: output = payload

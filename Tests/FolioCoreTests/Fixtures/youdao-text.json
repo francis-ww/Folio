@@ -1,0 +1,14 @@
+{
+  "errorCode": "0",
+  "query": "ephemeral",
+  "translation": ["短暂的"],
+  "basic": {
+    "phonetic": "ɪˈfem.ər.əl",
+    "uk-phonetic": "ɪˈfem.ər.əl",
+    "us-phonetic": "ɪˈfem.ɚ.əl",
+    "uk-speech": "https://dict.youdao.com/dictvoice?audio=ephemeral&type=1",
+    "us-speech": "https://dict.youdao.com/dictvoice?audio=ephemeral&type=2",
+    "explains": ["adj. 短暂的；转瞬即逝的", "n. 短暂存在的事物"]
+  },
+  "web": [{"key": "ephemeral beauty", "value": ["短暂的美丽"]}]
+}

@@ -7,7 +7,7 @@ struct ReviewCompletionView: View {
             Image(systemName: "checkmark").font(.title).foregroundStyle(Theme.accent)
                 .frame(width: 72, height: 72).background(Theme.accent.opacity(0.1), in: Circle())
             Text("A little more\npart of you.").font(Theme.title).multilineTextAlignment(.center)
-            Text("\(count) \(count == 1 ? "word" : "words") practiced.\nCome back when you’re ready.")
+            Text("\(count) words practiced.\nCome back when you’re ready.")
                 .font(.subheadline).foregroundStyle(Theme.muted).multilineTextAlignment(.center).lineSpacing(5)
         }.frame(maxWidth: .infinity).padding(.vertical, 40)
     }

@@ -1,0 +1,68 @@
+{
+  "reference": "Python hashlib.sha256; OpenAPI Python code-point truncation",
+  "cases": [
+    {
+      "query": "ephemeral",
+      "input": "ephemeral",
+      "appKey": "test-app-key",
+      "salt": "fixed-salt-001",
+      "curtime": "1700000000",
+      "appSecret": "test-app-secret",
+      "sign": "c1c472a00863ff9cd02f1f2880b83974819e53f58dbeaa8d74e28c194023286c"
+    },
+    {
+      "query": "aaaaaaaaaaaaaaaaaaaa",
+      "input": "aaaaaaaaaaaaaaaaaaaa",
+      "appKey": "test-app-key",
+      "salt": "fixed-salt-001",
+      "curtime": "1700000000",
+      "appSecret": "test-app-secret",
+      "sign": "5ee87c9e563964d5f78f0b5fd81e2fa3eaa923a29d9c988fa7065886dbc22123"
+    },
+    {
+      "query": "abcdefghijklmnopqrstu",
+      "input": "abcdefghij21lmnopqrstu",
+      "appKey": "test-app-key",
+      "salt": "fixed-salt-001",
+      "curtime": "1700000000",
+      "appSecret": "test-app-secret",
+      "sign": "14138a883045d944bd3a62a746eeb394b6fa5d28be36fde652939cbf18143f68"
+    },
+    {
+      "query": "an exceptionally fleeting moment",
+      "input": "an excepti32ing moment",
+      "appKey": "test-app-key",
+      "salt": "fixed-salt-001",
+      "curtime": "1700000000",
+      "appSecret": "test-app-secret",
+      "sign": "3ad90bcfe524c119fd08a0345a889db4aed7c6001aa0627cd200a5a5f6398029"
+    },
+    {
+      "query": "汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉汉",
+      "input": "汉汉汉汉汉汉汉汉汉汉21汉汉汉汉汉汉汉汉汉汉",
+      "appKey": "test-app-key",
+      "salt": "fixed-salt-001",
+      "curtime": "1700000000",
+      "appSecret": "test-app-secret",
+      "sign": "6c5597ed7bdd428080ce863f237d49eb9634462b22065215518fb739105bb09b"
+    },
+    {
+      "query": "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂",
+      "input": "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂21🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂",
+      "appKey": "test-app-key",
+      "salt": "fixed-salt-001",
+      "curtime": "1700000000",
+      "appSecret": "test-app-secret",
+      "sign": "e51ff3eac66465203a362630dc956b65dd5c15f28e227077a323c6cf1451a715"
+    },
+    {
+      "query": "ééééééééééé",
+      "input": "ééééé22ééééé",
+      "appKey": "test-app-key",
+      "salt": "fixed-salt-001",
+      "curtime": "1700000000",
+      "appSecret": "test-app-secret",
+      "sign": "9131fda85599cd5f1fa86887d876f9cb829418cf48ac901cfe220d39488a6328"
+    }
+  ]
+}

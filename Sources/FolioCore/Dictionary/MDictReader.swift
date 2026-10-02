@@ -1,11 +1,12 @@
 import Foundation
 
-/// A bounded, streaming reader for unencrypted MDict v2 UTF-8/UTF-16 archives.
+/// A bounded, streaming reader for MDict v2 UTF-8/UTF-16 archives, including self-contained encryption.
 /// Call only from a background actor. Resource and definition records may span blocks.
 struct MDictReader {
     struct Header {
         let title: String
         let encoding: String.Encoding
+        let encryption: MDictEncryption
     }
     private struct Key {
         let offset: Int
@@ -35,8 +36,7 @@ struct MDictReader {
         guard let version = Double(attrs["GeneratedByEngineVersion"] ?? ""), version >= 2, version < 3 else {
             throw MDictError.unsupported("an engine version other than MDict 2")
         }
-        let encrypted = (attrs["Encrypted"] ?? "No").lowercased()
-        guard ["no", "0", ""].contains(encrypted) else { throw MDictError.unsupported("encryption") }
+        let encryption = try MDictEncryption(attribute: attrs["Encrypted"])
         guard (attrs["StyleSheet"] ?? "").isEmpty else { throw MDictError.unsupported("embedded stylesheet substitutions") }
         let encodingName = resourceArchive ? "UTF-16" : (attrs["Encoding"] ?? "UTF-8").uppercased()
         let encoding: String.Encoding
@@ -45,21 +45,27 @@ struct MDictReader {
         case "UTF-16", "UTF-16LE": encoding = .utf16LittleEndian; width = 2
         default: throw MDictError.unsupported("\(encodingName) text encoding")
         }
-        header = Header(title: attrs["Title"] ?? url.deletingPathExtension().lastPathComponent, encoding: encoding)
+        header = Header(title: attrs["Title"] ?? url.deletingPathExtension().lastPathComponent,
+                        encoding: encoding, encryption: encryption)
     }
 
     func records(_ consume: (String, Data) throws -> Void) throws {
         var metadata = BinaryCursor(data: try file.read(40))
+        var checksum = BinaryCursor(data: try file.read(4))
+        guard try checksum.integer(4) == UInt64(ArchiveCompression.checksum(metadata.data)) else {
+            // Standard registered v2 dictionaries Salsa-encrypt these 40 bytes using an
+            // external dictionary key. RegCode alone does not contain its owner identity.
+            if header.encryption.contains(.registered) { throw MDictError.passcodeRequired }
+            throw MDictError.malformed("key metadata checksum")
+        }
         let keyBlockCount = try metadata.size(maximum: 100_000)
         let entryCount = try metadata.size(maximum: maximumEntries)
         let infoExpanded = try metadata.size()
         let infoSize = try metadata.size()
         let keySectionSize = try metadata.size(maximum: Int.max)
-        var checksum = BinaryCursor(data: try file.read(4))
-        guard try checksum.integer(4) == UInt64(ArchiveCompression.checksum(metadata.data)) else {
-            throw MDictError.malformed("key metadata checksum")
-        }
-        var info = BinaryCursor(data: try ArchiveCompression.unpack(file.read(infoSize), expectedSize: infoExpanded))
+        let packedInfo = try file.read(infoSize)
+        let decodedInfo = try header.encryption.contains(.keyIndex) ? ArchiveDecryption.keyIndex(packedInfo) : packedInfo
+        var info = BinaryCursor(data: try ArchiveCompression.unpack(decodedInfo, expectedSize: infoExpanded))
         var keyBlocks: [Block] = []
         var describedEntries = 0
         for _ in 0 ..< keyBlockCount {

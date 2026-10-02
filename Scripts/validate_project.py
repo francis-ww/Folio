@@ -9,14 +9,18 @@ import plistlib
 import re
 import subprocess
 import xml.etree.ElementTree as ET
+from validate_localization import validate as validate_localization
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def validate(swiftc=None):
+    validate_localization()
     project = (ROOT / "Folio.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
     defined = set(re.findall(r"^\s*([A-F0-9]{24}) = \{", project, re.MULTILINE))
     referenced = set(re.findall(r"\b[A-F0-9]{24}\b", project))
+    assert 'Resources/Localizable.xcstrings' in project and 'text.json.xcstrings' in project
+    assert 'developmentRegion = en;' in project and '"zh-Hans"' in project
     assert referenced <= defined, f"Unresolved Xcode object references: {referenced - defined}"
     app_sources = sorted((ROOT / "Folio").rglob("*.swift"))
     test_sources = sorted((ROOT / "FolioTests").rglob("*.swift"))

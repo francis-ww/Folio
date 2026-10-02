@@ -2,6 +2,14 @@ import Foundation
 
 /// Original sample definitions; no licensed dictionary content is bundled.
 public enum SampleData {
+    public static let onlineEntry = DictionaryEntry(
+        id: "preview-youdao-ephemeral", dictionaryID: "youdao-online", headword: "ephemeral",
+        pronunciation: "/ɪˈfem.ər.əl/", partOfSpeech: "adj.", summary: "短暂的；转瞬即逝的", online: .init(
+            ukPhonetic: "ɪˈfem.ər.əl", usPhonetic: "ɪˈfem.ɚ.əl",
+            meanings: [.init(partOfSpeech: "adj.", text: "短暂的；转瞬即逝的")],
+            webTranslations: [.init(phrase: "ephemeral beauty", translations: ["短暂的美丽"])],
+            examples: [.init(sentence: "The garden held the ephemeral beauty of the first snow.", translation: "花园留住了初雪转瞬即逝的美。")]))
+
     public static let entries: [DictionaryEntry] = [
         .init(id: "sample-serendipity", headword: "serendipity", pronunciation: "/ˌser.ənˈdɪp.ə.ti/", partOfSpeech: "noun",
               summary: "The unexpected discovery of something lovely while looking for something else.",
